@@ -155,6 +155,28 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertFalse(self.window.diagnostic_state()["observing_active"])
         self.assertFalse(self.window._observe_timer.isActive())
 
+    def test_idle_blink_runs_half_closed_half_sequence(self) -> None:
+        diagnostics = self.window.diagnostic_state()
+        self.assertTrue(diagnostics["blink_animation_loaded"])
+        self.assertEqual(diagnostics["blink_animation_frames"], 3)
+
+        self.window._start_blink()
+        self.assertTrue(self.window.diagnostic_state()["blink_active"])
+        self.assertEqual(self.window.diagnostic_state()["blink_frame_index"], 0)
+
+        for expected_index in (1, 2):
+            for _ in range(self.window.BLINK_FRAME_HOLD_TICKS):
+                self.window._advance_motion()
+            self.assertEqual(
+                self.window.diagnostic_state()["blink_frame_index"],
+                expected_index,
+            )
+
+        for _ in range(self.window.BLINK_FRAME_HOLD_TICKS):
+            self.window._advance_motion()
+        self.assertFalse(self.window.diagnostic_state()["blink_active"])
+        self.assertTrue(self.window._blink_timer.isActive())
+
     def test_single_click_handler_hisses(self) -> None:
         self.window._handle_single_click()
         self.assertEqual(self.window.state, "hiss")

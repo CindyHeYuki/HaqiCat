@@ -27,6 +27,8 @@ class InteractivePetWindow(SpritePetWindow):
     OBSERVE_SETTLE_TICKS = 4
     RISE_DURATION_MS = 640
     RISE_FRAME_HOLD_TICKS = 4
+    BLINK_DELAY_RANGE_MS = (2_500, 7_000)
+    BLINK_FRAME_HOLD_TICKS = 2
     CRAWL_FRAME_HOLD_TICKS = 3
 
     def __init__(self) -> None:
@@ -44,6 +46,8 @@ class InteractivePetWindow(SpritePetWindow):
         self._rising_active = False
         self._rise_direction = 1
         self._rise_animation_tick = 0
+        self._blink_active = False
+        self._blink_animation_tick = 0
         self._crawl_animation_tick = 0
         self._press_position: QPoint | None = None
         self._dragged_since_press = False
@@ -67,12 +71,17 @@ class InteractivePetWindow(SpritePetWindow):
         self._rise_timer.setSingleShot(True)
         self._rise_timer.timeout.connect(self._finish_rising)
 
+        self._blink_timer = QTimer(self)
+        self._blink_timer.setSingleShot(True)
+        self._blink_timer.timeout.connect(self._start_blink)
+
         self._behavior_timer.timeout.disconnect()
         self._behavior_timer.timeout.connect(self._choose_autonomous_behavior)
 
         self._crawl_frames = self._load_crawl_frames()
         self._observe_frames = self._load_observe_frames()
         self._rise_frames = self._load_rise_frames()
+        self._blink_frames = self._load_blink_frames()
 
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
@@ -81,6 +90,7 @@ class InteractivePetWindow(SpritePetWindow):
 
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setToolTip("拖动我，单击哈气，双击休息")
+        self._schedule_blink()
 
     def _load_crawl_frames(self) -> dict[str, tuple[QPixmap, ...]]:
         """Load four low-profile creeping phases in each direction."""
@@ -130,6 +140,13 @@ class InteractivePetWindow(SpritePetWindow):
             )
         }
 
+    def _load_blink_frames(self) -> tuple[QPixmap, ...]:
+        """Load a half-closed, closed, half-closed blink sequence."""
+        sprite_root = self.sprite_paths["idle"].parent
+        half = QPixmap(str(sprite_root / "haqi_cat_idle_blink_half.png"))
+        closed = QPixmap(str(sprite_root / "haqi_cat_idle_blink_closed.png"))
+        return (half, closed, half)
+
     def set_state(self, state: str) -> None:
         """Keep motion timing appropriate for the selected state."""
         super().set_state(state)
@@ -143,6 +160,8 @@ class InteractivePetWindow(SpritePetWindow):
                 self._rise_timer.stop()
                 self._rising_active = False
                 self._rise_animation_tick = 0
+        if state != "idle" and hasattr(self, "_blink_timer"):
+            self._cancel_blink()
         self._idle_timer.stop()
         if hasattr(self, "_motion_timer"):
             interval = (
@@ -169,6 +188,50 @@ class InteractivePetWindow(SpritePetWindow):
             self._observe_animation_tick += 1
         if self._rising_active:
             self._rise_animation_tick += 1
+        if self._blink_active:
+            self._blink_animation_tick += 1
+            if self._blink_animation_tick >= (
+                len(self._blink_frames) * self.BLINK_FRAME_HOLD_TICKS
+            ):
+                self._finish_blink()
+        self.update()
+
+    def _schedule_blink(self) -> None:
+        delay = random.randint(*self.BLINK_DELAY_RANGE_MS)
+        self._blink_timer.start(delay)
+
+    def _start_blink(self) -> None:
+        self._blink_timer.stop()
+        if self._blink_active:
+            return
+        if (
+            self.state != "idle"
+            or self._drag_pose_active
+            or self._landing_active
+            or self._observing_active
+            or self._rising_active
+        ):
+            self._schedule_blink()
+            return
+        self._blink_active = True
+        self._blink_animation_tick = 0
+        self.update()
+
+    def _cancel_blink(self) -> None:
+        if not self._blink_active:
+            return
+        self._blink_active = False
+        self._blink_animation_tick = 0
+        if not self._blink_timer.isActive():
+            self._schedule_blink()
+        self.update()
+
+    def _finish_blink(self) -> None:
+        if not self._blink_active:
+            return
+        self._blink_active = False
+        self._blink_animation_tick = 0
+        self._schedule_blink()
         self.update()
 
     def _choose_autonomous_behavior(self) -> None:
@@ -447,6 +510,7 @@ class InteractivePetWindow(SpritePetWindow):
                 "landing_active": self._landing_active,
                 "observing_active": self._observing_active,
                 "rising_active": self._rising_active,
+                "blink_active": self._blink_active,
                 "rise_direction": self._rise_direction,
                 "observe_direction": self._observe_direction,
                 "crawl_direction": self._crawl_direction,
@@ -499,6 +563,14 @@ class InteractivePetWindow(SpritePetWindow):
                     1,
                     self._rise_animation_tick // self.RISE_FRAME_HOLD_TICKS,
                 ),
+                "blink_animation_frames": len(self._blink_frames),
+                "blink_animation_loaded": all(
+                    not frame.isNull() for frame in self._blink_frames
+                ),
+                "blink_frame_index": min(
+                    len(self._blink_frames) - 1,
+                    self._blink_animation_tick // self.BLINK_FRAME_HOLD_TICKS,
+                ),
             }
         )
         return diagnostics
@@ -522,6 +594,14 @@ class InteractivePetWindow(SpritePetWindow):
         else:
             sprite_state = visual_state
         sprite = self._sprites.get(sprite_state)
+        if visual_state == "idle" and self._blink_active:
+            frame_index = min(
+                len(self._blink_frames) - 1,
+                self._blink_animation_tick // self.BLINK_FRAME_HOLD_TICKS,
+            )
+            candidate = self._blink_frames[frame_index]
+            if not candidate.isNull():
+                sprite = candidate
         if visual_state in self._crawl_frames:
             frames = self._crawl_frames[visual_state]
             frame_index = (
