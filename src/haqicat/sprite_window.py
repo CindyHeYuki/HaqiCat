@@ -60,8 +60,8 @@ class SpritePetWindow(PetWindow):
             "hiss": sprite_root / "haqi_cat_hiss.png",
             "sleep": sprite_root / "haqi_cat_sleep.png",
             "drag": sprite_root / "haqi_cat_drag.png",
-            "walk_left": sprite_root / "haqi_cat_walk_left.png",
-            "walk_right": sprite_root / "haqi_cat_walk_right.png",
+            "crawl_left": sprite_root / "haqi_cat_crawl_left_01.png",
+            "crawl_right": sprite_root / "haqi_cat_crawl_right_01.png",
         }
 
     @property

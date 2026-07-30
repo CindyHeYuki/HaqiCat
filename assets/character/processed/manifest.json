@@ -12,6 +12,38 @@
     "reference_images": "four user-provided Haqi Cat images"
   },
   "sprites": {
+    "crawl_left_01": {
+      "file": "haqi_cat_crawl_left_01.png",
+      "sha256": "2a063d5cb5de3c56878a460a72c829c872ff8d95f9e690feeec552d0ceb8b3eb"
+    },
+    "crawl_left_02": {
+      "file": "haqi_cat_crawl_left_02.png",
+      "sha256": "ac52cb5d160deb5c73af37fa35e788e85a88485b0172f671a5b3f56b2043f5dc"
+    },
+    "crawl_left_03": {
+      "file": "haqi_cat_crawl_left_03.png",
+      "sha256": "f2a5e4b682754cb02d5be38e44ce19f9ea87541fb4bdeec92d3dbfedfca7c76c"
+    },
+    "crawl_left_04": {
+      "file": "haqi_cat_crawl_left_04.png",
+      "sha256": "b5368a53303d87de4ff442dc9f1f4aee57fbd36e8db77fae4465ed77ea60a8c9"
+    },
+    "crawl_right_01": {
+      "file": "haqi_cat_crawl_right_01.png",
+      "sha256": "693f73d872bfd74f41283038eca7f30aa75ab6aa4db847c8abfc5e4e4a001489"
+    },
+    "crawl_right_02": {
+      "file": "haqi_cat_crawl_right_02.png",
+      "sha256": "46633c0a1d0bada2e41a370c3ccab0b806c52eefd6bcb9ead5ff0c726582eb5c"
+    },
+    "crawl_right_03": {
+      "file": "haqi_cat_crawl_right_03.png",
+      "sha256": "09d7f7b78ddb3b167a455002da1c8a1900dc1a82dca171053894f0bdab9af6d4"
+    },
+    "crawl_right_04": {
+      "file": "haqi_cat_crawl_right_04.png",
+      "sha256": "a87db38ad0942275b240c8bb5364989b80b5eac5b95b7bfc67d27cdc7231046d"
+    },
     "drag": {
       "file": "haqi_cat_drag.png",
       "sha256": "ec88cb92e1613bec57bc829fd91a8090d1484dcc378bb547b9de4164c379331d"

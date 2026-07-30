@@ -28,7 +28,7 @@ class SpritePetWindowTests(unittest.TestCase):
         self.assertTrue(diagnostics["sprites_loaded"])
         self.assertEqual(
             set(self.window.sprite_paths),
-            {"idle", "hiss", "sleep", "drag", "walk_left", "walk_right"},
+            {"idle", "hiss", "sleep", "drag", "crawl_left", "crawl_right"},
         )
 
     def test_sleep_stops_idle_timer_and_idle_restarts_it(self) -> None:
