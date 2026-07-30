@@ -57,11 +57,12 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.window._advance_crawl()
 
         self.assertEqual(self.window.x(), start_x + self.window.CRAWL_STEP_PX)
-        self.assertEqual(self.window.state, "idle")
+        self.assertEqual(self.window.state, "observe_right")
         self.assertTrue(self.window.diagnostic_state()["observing_active"])
         self.assertTrue(self.window._observe_timer.isActive())
         self.window._finish_observing()
         self.assertFalse(self.window.diagnostic_state()["observing_active"])
+        self.assertEqual(self.window.state, "idle")
 
     def test_crawl_turns_around_at_screen_edge(self) -> None:
         screen = self.window.screen()
@@ -95,6 +96,37 @@ class InteractivePetWindowTests(unittest.TestCase):
             self.window.diagnostic_state()["crawl_frame_index"],
             1,
         )
+
+    def test_observation_settles_before_holding_low_pose(self) -> None:
+        diagnostics = self.window.diagnostic_state()
+        self.assertTrue(diagnostics["observe_animation_loaded"])
+        self.assertEqual(diagnostics["observe_animation_frames"], 2)
+
+        self.window._start_crawl(direction=-1, steps=1)
+        self.window._advance_crawl()
+        self.assertEqual(self.window.state, "observe_left")
+        self.assertEqual(
+            self.window.diagnostic_state()["observe_frame_index"],
+            0,
+        )
+
+        for _ in range(self.window.OBSERVE_SETTLE_TICKS):
+            self.window._advance_motion()
+        self.assertEqual(
+            self.window.diagnostic_state()["observe_frame_index"],
+            1,
+        )
+
+    def test_sleep_interrupts_low_observation(self) -> None:
+        self.window._start_crawl(direction=1, steps=1)
+        self.window._advance_crawl()
+        self.assertTrue(self.window.diagnostic_state()["observing_active"])
+
+        self.window.toggle_sleep()
+
+        self.assertEqual(self.window.state, "sleep")
+        self.assertFalse(self.window.diagnostic_state()["observing_active"])
+        self.assertFalse(self.window._observe_timer.isActive())
 
     def test_single_click_handler_hisses(self) -> None:
         self.window._handle_single_click()

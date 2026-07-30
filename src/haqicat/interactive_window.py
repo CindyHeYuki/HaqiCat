@@ -23,7 +23,8 @@ class InteractivePetWindow(SpritePetWindow):
     BEHAVIOR_DELAY_RANGE_MS = (4_000, 8_000)
     CRAWL_STEP_PX = 2
     CRAWL_STEP_RANGE = (18, 40)
-    OBSERVE_DURATION_MS = 1_400
+    OBSERVE_DURATION_MS = 1_800
+    OBSERVE_SETTLE_TICKS = 4
     CRAWL_FRAME_HOLD_TICKS = 3
 
     def __init__(self) -> None:
@@ -37,6 +38,7 @@ class InteractivePetWindow(SpritePetWindow):
         self._crawl_steps_remaining = 0
         self._observing_active = False
         self._observe_direction = 1
+        self._observe_animation_tick = 0
         self._crawl_animation_tick = 0
         self._press_position: QPoint | None = None
         self._dragged_since_press = False
@@ -60,6 +62,7 @@ class InteractivePetWindow(SpritePetWindow):
         self._behavior_timer.timeout.connect(self._choose_autonomous_behavior)
 
         self._crawl_frames = self._load_crawl_frames()
+        self._observe_frames = self._load_observe_frames()
 
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
@@ -85,13 +88,31 @@ class InteractivePetWindow(SpritePetWindow):
             )
         }
 
+    def _load_observe_frames(self) -> dict[str, tuple[QPixmap, ...]]:
+        """Load the stride-settle and low observation poses."""
+        sprite_root = self.sprite_paths["observe_left"].parent
+        return {
+            direction: tuple(
+                QPixmap(
+                    str(sprite_root / f"haqi_cat_observe_{side}_{index:02d}.png")
+                )
+                for index in range(1, 3)
+            )
+            for direction, side in (
+                ("observe_left", "left"),
+                ("observe_right", "right"),
+            )
+        }
+
     def set_state(self, state: str) -> None:
         """Keep motion timing appropriate for the selected state."""
         super().set_state(state)
         if state == "sleep" and hasattr(self, "_observe_timer"):
             self._crawl_steps_remaining = 0
             self._crawl_direction = 0
-            self._cancel_observing()
+            self._observe_timer.stop()
+            self._observing_active = False
+            self._observe_animation_tick = 0
         self._idle_timer.stop()
         if hasattr(self, "_motion_timer"):
             interval = (
@@ -114,6 +135,8 @@ class InteractivePetWindow(SpritePetWindow):
     def _advance_motion(self) -> None:
         self._motion_frame = (self._motion_frame + 1) % 10_000
         self._advance_crawl()
+        if self._observing_active:
+            self._observe_animation_tick += 1
         self.update()
 
     def _choose_autonomous_behavior(self) -> None:
@@ -211,7 +234,10 @@ class InteractivePetWindow(SpritePetWindow):
         self._crawl_direction = 0
         self._crawl_steps_remaining = 0
         self._crawl_animation_tick = 0
-        self.set_state("idle")
+        self._observe_animation_tick = 0
+        self.set_state(
+            "observe_left" if self._observe_direction < 0 else "observe_right"
+        )
         self._observing_active = True
         self._observe_timer.start(self.OBSERVE_DURATION_MS)
         self.update()
@@ -221,6 +247,9 @@ class InteractivePetWindow(SpritePetWindow):
             return
         self._observe_timer.stop()
         self._observing_active = False
+        self._observe_animation_tick = 0
+        if self.state in ("observe_left", "observe_right"):
+            self.set_state("idle")
         self.update()
 
     def _finish_observing(self) -> None:
@@ -228,9 +257,11 @@ class InteractivePetWindow(SpritePetWindow):
             return
         self._observe_timer.stop()
         self._observing_active = False
+        self._observe_animation_tick = 0
+        if self.state in ("observe_left", "observe_right"):
+            self.set_state("idle")
         self.update()
-        if self.state == "idle":
-            self._schedule_behavior()
+        self._schedule_behavior()
 
     def _cancel_autonomous_motion(self) -> None:
         self._crawl_direction = 0
@@ -351,6 +382,7 @@ class InteractivePetWindow(SpritePetWindow):
                 "drag_pose_active": self._drag_pose_active,
                 "landing_active": self._landing_active,
                 "observing_active": self._observing_active,
+                "observe_direction": self._observe_direction,
                 "crawl_direction": self._crawl_direction,
                 "crawl_steps_remaining": self._crawl_steps_remaining,
                 "autonomous_mode": (
@@ -375,6 +407,18 @@ class InteractivePetWindow(SpritePetWindow):
                 "crawl_frame_index": (
                     self._crawl_animation_tick // self.CRAWL_FRAME_HOLD_TICKS
                 ),
+                "observe_animation_frames": min(
+                    len(frames) for frames in self._observe_frames.values()
+                ),
+                "observe_animation_loaded": all(
+                    not frame.isNull()
+                    for frames in self._observe_frames.values()
+                    for frame in frames
+                ),
+                "observe_frame_index": min(
+                    1,
+                    self._observe_animation_tick // self.OBSERVE_SETTLE_TICKS,
+                ),
             }
         )
         return diagnostics
@@ -389,15 +433,27 @@ class InteractivePetWindow(SpritePetWindow):
             visual_state = "observe"
         else:
             visual_state = self.state
-        sprite_state = (
-            "idle" if visual_state in ("landing", "observe") else visual_state
-        )
+        if visual_state == "landing":
+            sprite_state = "idle"
+        elif visual_state == "observe":
+            sprite_state = self.state
+        else:
+            sprite_state = visual_state
         sprite = self._sprites.get(sprite_state)
         if visual_state in self._crawl_frames:
             frames = self._crawl_frames[visual_state]
             frame_index = (
                 self._crawl_animation_tick // self.CRAWL_FRAME_HOLD_TICKS
             ) % len(frames)
+            candidate = frames[frame_index]
+            if not candidate.isNull():
+                sprite = candidate
+        if self.state in self._observe_frames:
+            frames = self._observe_frames[self.state]
+            frame_index = min(
+                len(frames) - 1,
+                self._observe_animation_tick // self.OBSERVE_SETTLE_TICKS,
+            )
             candidate = frames[frame_index]
             if not candidate.isNull():
                 sprite = candidate
@@ -437,12 +493,9 @@ class InteractivePetWindow(SpritePetWindow):
                 damping = 1.0 - local
                 rotation = 4.0 * damping * math.sin(local * math.pi * 5.0)
         elif visual_state == "observe":
-            x_offset = 2.0 * self._observe_direction
-            y_offset = -1.0
-            rotation = (
-                2.0 * self._observe_direction
-                + 0.8 * math.sin(phase * 2.2)
-            )
+            breath = (math.sin(phase * 1.8) + 1.0) / 2.0
+            y_offset = -0.5 * breath
+            y_scale = 1.0 + 0.004 * breath
         elif visual_state == "idle":
             breath = (math.sin(phase * 2.4) + 1.0) / 2.0
             y_offset = -2.0 * breath

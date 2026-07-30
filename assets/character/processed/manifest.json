@@ -44,6 +44,22 @@
       "file": "haqi_cat_crawl_right_04.png",
       "sha256": "a87db38ad0942275b240c8bb5364989b80b5eac5b95b7bfc67d27cdc7231046d"
     },
+    "observe_left_01": {
+      "file": "haqi_cat_observe_left_01.png",
+      "sha256": "d27cdcc86e04ffc2816ce04fd1f9fbcee04b46801541940eaef8cf344d406da9"
+    },
+    "observe_left_02": {
+      "file": "haqi_cat_observe_left_02.png",
+      "sha256": "bb77f070bf246614ab2ed1cdbe1114cbba7f60e8e0888b3a5e8c177cb2cefe3f"
+    },
+    "observe_right_01": {
+      "file": "haqi_cat_observe_right_01.png",
+      "sha256": "177d2ed3a64e8ba27af3fc811a59a8f2f68f322235afa6a83e2f1845ca567991"
+    },
+    "observe_right_02": {
+      "file": "haqi_cat_observe_right_02.png",
+      "sha256": "b3d4915456f2d86d77de27d5cc44e88b1d6eaf943c136c5879ba01aeaeb853df"
+    },
     "drag": {
       "file": "haqi_cat_drag.png",
       "sha256": "ec88cb92e1613bec57bc829fd91a8090d1484dcc378bb547b9de4164c379331d"
