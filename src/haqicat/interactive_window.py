@@ -17,12 +17,14 @@ class InteractivePetWindow(SpritePetWindow):
     ACTIVE_FRAME_INTERVAL_MS = 80
     SLEEP_FRAME_INTERVAL_MS = 200
     DRAG_THRESHOLD_PX = 6
+    DRAG_LIFT_Y_PX = 18
 
     def __init__(self) -> None:
         super().__init__()
         self._idle_timer.stop()
 
         self._motion_frame = 0
+        self._drag_pose_active = False
         self._press_position: QPoint | None = None
         self._dragged_since_press = False
         self._suppress_next_release = False
@@ -64,6 +66,20 @@ class InteractivePetWindow(SpritePetWindow):
         self._motion_frame = (self._motion_frame + 1) % 10_000
         self.update()
 
+    def _begin_drag_pose(self) -> None:
+        """Switch to the lifted pose and anchor it beneath the cursor."""
+        if self._drag_pose_active:
+            return
+        self._drag_pose_active = True
+        self._click_timer.stop()
+        self._drag_offset = QPoint(self.width() // 2, self.DRAG_LIFT_Y_PX)
+        self.update()
+
+    def _end_drag_pose(self) -> None:
+        """Restore normal rendering after the pointer releases the pet."""
+        self._drag_pose_active = False
+        self.update()
+
     def _start_hiss(self) -> None:
         self._behavior_timer.stop()
         super()._start_hiss()
@@ -89,6 +105,7 @@ class InteractivePetWindow(SpritePetWindow):
             ).manhattanLength()
             if distance >= self.DRAG_THRESHOLD_PX:
                 self._dragged_since_press = True
+                self._begin_drag_pose()
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
@@ -97,8 +114,11 @@ class InteractivePetWindow(SpritePetWindow):
             and not self._dragged_since_press
             and not self._suppress_next_release
         )
+        was_dragging = self._drag_pose_active
         super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.LeftButton:
+            if was_dragging:
+                self._end_drag_pose()
             self.setCursor(Qt.CursorShape.OpenHandCursor)
             self._press_position = None
             if self._suppress_next_release:
@@ -122,13 +142,15 @@ class InteractivePetWindow(SpritePetWindow):
                 "motion_interval_ms": self._motion_timer.interval(),
                 "single_click_reaction": "hiss",
                 "double_click_reaction": "toggle_sleep",
+                "drag_pose_active": self._drag_pose_active,
             }
         )
         return diagnostics
 
     def paintEvent(self, event: object) -> None:
         """Render smooth breathing, swaying, and hissing shake motion."""
-        sprite = self._sprites.get(self.state)
+        visual_state = "drag" if self._drag_pose_active else self.state
+        sprite = self._sprites.get(visual_state)
         if sprite is None or sprite.isNull():
             super().paintEvent(event)
             return
@@ -143,18 +165,21 @@ class InteractivePetWindow(SpritePetWindow):
         y_scale = 1.0
         rotation = 0.0
 
-        if self.state == "idle":
+        if visual_state == "drag":
+            y_offset = 1.5 * math.sin(phase * 4.0)
+            rotation = 2.5 * math.sin(phase * 3.0)
+        elif visual_state == "idle":
             breath = (math.sin(phase * 2.4) + 1.0) / 2.0
             y_offset = -2.0 * breath
             x_scale = 1.0 - 0.008 * breath
             y_scale = 1.0 + 0.018 * breath
             rotation = 1.2 * math.sin(phase * 1.2)
-        elif self.state == "hiss":
+        elif visual_state == "hiss":
             x_offset = 3.0 * math.sin(phase * 28.0)
             y_offset = -2.0
             x_scale = 1.02
             y_scale = 1.02
-        elif self.state == "sleep":
+        elif visual_state == "sleep":
             breath = (math.sin(phase * 1.5) + 1.0) / 2.0
             y_scale = 1.0 + 0.008 * breath
             y_offset = -1.0 * breath

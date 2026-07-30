@@ -12,6 +12,10 @@
     "reference_images": "four user-provided Haqi Cat images"
   },
   "sprites": {
+    "drag": {
+      "file": "haqi_cat_drag.png",
+      "sha256": "ec88cb92e1613bec57bc829fd91a8090d1484dcc378bb547b9de4164c379331d"
+    },
     "hiss": {
       "file": "haqi_cat_hiss.png",
       "sha256": "5fdf0b476de5995b62a3302630508ac3e3677f3fd6702bb145ea4afe0096ef94"

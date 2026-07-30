@@ -28,6 +28,17 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertGreaterEqual(interval, 60)
         self.assertLessEqual(interval, 250)
 
+    def test_drag_pose_anchors_below_cursor_and_restores(self) -> None:
+        self.window._begin_drag_pose()
+        self.assertTrue(self.window.diagnostic_state()["drag_pose_active"])
+        self.assertEqual(
+            self.window._drag_offset.x(),
+            self.window.width() // 2,
+        )
+        self.assertEqual(self.window._drag_offset.y(), self.window.DRAG_LIFT_Y_PX)
+        self.window._end_drag_pose()
+        self.assertFalse(self.window.diagnostic_state()["drag_pose_active"])
+
     def test_single_click_handler_hisses(self) -> None:
         self.window._handle_single_click()
         self.assertEqual(self.window.state, "hiss")
