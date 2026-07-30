@@ -25,6 +25,8 @@ class InteractivePetWindow(SpritePetWindow):
     CRAWL_STEP_RANGE = (18, 40)
     OBSERVE_DURATION_MS = 1_800
     OBSERVE_SETTLE_TICKS = 4
+    RISE_DURATION_MS = 640
+    RISE_FRAME_HOLD_TICKS = 4
     CRAWL_FRAME_HOLD_TICKS = 3
 
     def __init__(self) -> None:
@@ -39,6 +41,9 @@ class InteractivePetWindow(SpritePetWindow):
         self._observing_active = False
         self._observe_direction = 1
         self._observe_animation_tick = 0
+        self._rising_active = False
+        self._rise_direction = 1
+        self._rise_animation_tick = 0
         self._crawl_animation_tick = 0
         self._press_position: QPoint | None = None
         self._dragged_since_press = False
@@ -58,11 +63,16 @@ class InteractivePetWindow(SpritePetWindow):
         self._observe_timer.setSingleShot(True)
         self._observe_timer.timeout.connect(self._finish_observing)
 
+        self._rise_timer = QTimer(self)
+        self._rise_timer.setSingleShot(True)
+        self._rise_timer.timeout.connect(self._finish_rising)
+
         self._behavior_timer.timeout.disconnect()
         self._behavior_timer.timeout.connect(self._choose_autonomous_behavior)
 
         self._crawl_frames = self._load_crawl_frames()
         self._observe_frames = self._load_observe_frames()
+        self._rise_frames = self._load_rise_frames()
 
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
@@ -104,6 +114,22 @@ class InteractivePetWindow(SpritePetWindow):
             )
         }
 
+    def _load_rise_frames(self) -> dict[str, tuple[QPixmap, ...]]:
+        """Load the push-up and half-kneeling rise poses."""
+        sprite_root = self.sprite_paths["rise_left"].parent
+        return {
+            direction: tuple(
+                QPixmap(
+                    str(sprite_root / f"haqi_cat_rise_{side}_{index:02d}.png")
+                )
+                for index in range(1, 3)
+            )
+            for direction, side in (
+                ("rise_left", "left"),
+                ("rise_right", "right"),
+            )
+        }
+
     def set_state(self, state: str) -> None:
         """Keep motion timing appropriate for the selected state."""
         super().set_state(state)
@@ -113,6 +139,10 @@ class InteractivePetWindow(SpritePetWindow):
             self._observe_timer.stop()
             self._observing_active = False
             self._observe_animation_tick = 0
+            if hasattr(self, "_rise_timer"):
+                self._rise_timer.stop()
+                self._rising_active = False
+                self._rise_animation_tick = 0
         self._idle_timer.stop()
         if hasattr(self, "_motion_timer"):
             interval = (
@@ -137,6 +167,8 @@ class InteractivePetWindow(SpritePetWindow):
         self._advance_crawl()
         if self._observing_active:
             self._observe_animation_tick += 1
+        if self._rising_active:
+            self._rise_animation_tick += 1
         self.update()
 
     def _choose_autonomous_behavior(self) -> None:
@@ -146,6 +178,7 @@ class InteractivePetWindow(SpritePetWindow):
             or self._drag_pose_active
             or self._landing_active
             or self._observing_active
+            or self._rising_active
         ):
             return
         if random.random() < 0.72:
@@ -163,6 +196,7 @@ class InteractivePetWindow(SpritePetWindow):
             return
         self._cancel_landing_animation()
         self._cancel_observing()
+        self._cancel_rising()
         self._behavior_timer.stop()
         self._reaction_timer.stop()
 
@@ -258,7 +292,36 @@ class InteractivePetWindow(SpritePetWindow):
         self._observe_timer.stop()
         self._observing_active = False
         self._observe_animation_tick = 0
-        if self.state in ("observe_left", "observe_right"):
+        self._start_rising()
+
+    def _start_rising(self) -> None:
+        """Push up from the low observation pose before returning idle."""
+        self._rise_direction = self._observe_direction
+        self._rise_animation_tick = 0
+        self.set_state(
+            "rise_left" if self._rise_direction < 0 else "rise_right"
+        )
+        self._rising_active = True
+        self._rise_timer.start(self.RISE_DURATION_MS)
+        self.update()
+
+    def _cancel_rising(self) -> None:
+        if not self._rising_active:
+            return
+        self._rise_timer.stop()
+        self._rising_active = False
+        self._rise_animation_tick = 0
+        if self.state in ("rise_left", "rise_right"):
+            self.set_state("idle")
+        self.update()
+
+    def _finish_rising(self) -> None:
+        if not self._rising_active:
+            return
+        self._rise_timer.stop()
+        self._rising_active = False
+        self._rise_animation_tick = 0
+        if self.state in ("rise_left", "rise_right"):
             self.set_state("idle")
         self.update()
         self._schedule_behavior()
@@ -270,6 +333,7 @@ class InteractivePetWindow(SpritePetWindow):
         if self.state in ("crawl_left", "crawl_right"):
             self.set_state("idle")
         self._cancel_observing()
+        self._cancel_rising()
 
     def _begin_drag_pose(self) -> None:
         """Switch to the lifted pose and anchor it beneath the cursor."""
@@ -382,6 +446,8 @@ class InteractivePetWindow(SpritePetWindow):
                 "drag_pose_active": self._drag_pose_active,
                 "landing_active": self._landing_active,
                 "observing_active": self._observing_active,
+                "rising_active": self._rising_active,
+                "rise_direction": self._rise_direction,
                 "observe_direction": self._observe_direction,
                 "crawl_direction": self._crawl_direction,
                 "crawl_steps_remaining": self._crawl_steps_remaining,
@@ -392,6 +458,8 @@ class InteractivePetWindow(SpritePetWindow):
                     if self._landing_active
                     else "observe"
                     if self._observing_active
+                    else "rise"
+                    if self._rising_active
                     else "crawl"
                     if self.state in ("crawl_left", "crawl_right")
                     else self.state
@@ -419,6 +487,18 @@ class InteractivePetWindow(SpritePetWindow):
                     1,
                     self._observe_animation_tick // self.OBSERVE_SETTLE_TICKS,
                 ),
+                "rise_animation_frames": min(
+                    len(frames) for frames in self._rise_frames.values()
+                ),
+                "rise_animation_loaded": all(
+                    not frame.isNull()
+                    for frames in self._rise_frames.values()
+                    for frame in frames
+                ),
+                "rise_frame_index": min(
+                    1,
+                    self._rise_animation_tick // self.RISE_FRAME_HOLD_TICKS,
+                ),
             }
         )
         return diagnostics
@@ -431,6 +511,8 @@ class InteractivePetWindow(SpritePetWindow):
             visual_state = "landing"
         elif self._observing_active:
             visual_state = "observe"
+        elif self._rising_active:
+            visual_state = "rise"
         else:
             visual_state = self.state
         if visual_state == "landing":
@@ -453,6 +535,15 @@ class InteractivePetWindow(SpritePetWindow):
             frame_index = min(
                 len(frames) - 1,
                 self._observe_animation_tick // self.OBSERVE_SETTLE_TICKS,
+            )
+            candidate = frames[frame_index]
+            if not candidate.isNull():
+                sprite = candidate
+        if self.state in self._rise_frames:
+            frames = self._rise_frames[self.state]
+            frame_index = min(
+                len(frames) - 1,
+                self._rise_animation_tick // self.RISE_FRAME_HOLD_TICKS,
             )
             candidate = frames[frame_index]
             if not candidate.isNull():

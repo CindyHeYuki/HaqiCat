@@ -62,6 +62,10 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertTrue(self.window._observe_timer.isActive())
         self.window._finish_observing()
         self.assertFalse(self.window.diagnostic_state()["observing_active"])
+        self.assertTrue(self.window.diagnostic_state()["rising_active"])
+        self.assertEqual(self.window.state, "rise_right")
+        self.window._finish_rising()
+        self.assertFalse(self.window.diagnostic_state()["rising_active"])
         self.assertEqual(self.window.state, "idle")
 
     def test_crawl_turns_around_at_screen_edge(self) -> None:
@@ -116,6 +120,29 @@ class InteractivePetWindowTests(unittest.TestCase):
             self.window.diagnostic_state()["observe_frame_index"],
             1,
         )
+
+    def test_observation_rises_through_two_frames_before_idle(self) -> None:
+        self.window._start_crawl(direction=-1, steps=1)
+        self.window._advance_crawl()
+        self.window._finish_observing()
+
+        diagnostics = self.window.diagnostic_state()
+        self.assertEqual(self.window.state, "rise_left")
+        self.assertTrue(diagnostics["rising_active"])
+        self.assertTrue(diagnostics["rise_animation_loaded"])
+        self.assertEqual(diagnostics["rise_animation_frames"], 2)
+        self.assertEqual(diagnostics["rise_frame_index"], 0)
+
+        for _ in range(self.window.RISE_FRAME_HOLD_TICKS):
+            self.window._advance_motion()
+        self.assertEqual(
+            self.window.diagnostic_state()["rise_frame_index"],
+            1,
+        )
+
+        self.window._finish_rising()
+        self.assertEqual(self.window.state, "idle")
+        self.assertFalse(self.window.diagnostic_state()["rising_active"])
 
     def test_sleep_interrupts_low_observation(self) -> None:
         self.window._start_crawl(direction=1, steps=1)

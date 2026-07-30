@@ -37,6 +37,8 @@ class SpritePetWindowTests(unittest.TestCase):
                 "crawl_right",
                 "observe_left",
                 "observe_right",
+                "rise_left",
+                "rise_right",
             },
         )
 
