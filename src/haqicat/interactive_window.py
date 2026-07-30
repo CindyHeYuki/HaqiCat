@@ -29,8 +29,8 @@ class InteractivePetWindow(SpritePetWindow):
     RISE_FRAME_HOLD_TICKS = 4
     BLINK_DELAY_RANGE_MS = (2_500, 7_000)
     BLINK_FRAME_HOLD_TICKS = 2
-    HISS_DURATION_MS = 960
-    HISS_FRAME_HOLD_TICKS = 4
+    HISS_FRAME_SEQUENCE = (0, 0, 1, 1, 2, 2, 2, 3, 3, 4, 4, 4)
+    HISS_DURATION_MS = len(HISS_FRAME_SEQUENCE) * ACTIVE_FRAME_INTERVAL_MS
     CRAWL_FRAME_HOLD_TICKS = 3
 
     def __init__(self) -> None:
@@ -156,8 +156,15 @@ class InteractivePetWindow(SpritePetWindow):
         sprite_root = self.sprite_paths["hiss"].parent
         return tuple(
             QPixmap(str(sprite_root / f"haqi_cat_hiss_{index:02d}.png"))
-            for index in range(1, 4)
+            for index in range(1, 6)
         )
+
+    def _hiss_frame_index(self) -> int:
+        tick = min(
+            self._hiss_animation_tick,
+            len(self.HISS_FRAME_SEQUENCE) - 1,
+        )
+        return self.HISS_FRAME_SEQUENCE[tick]
 
     def set_state(self, state: str) -> None:
         """Keep motion timing appropriate for the selected state."""
@@ -604,10 +611,7 @@ class InteractivePetWindow(SpritePetWindow):
                 "hiss_animation_loaded": all(
                     not frame.isNull() for frame in self._hiss_frames
                 ),
-                "hiss_frame_index": min(
-                    len(self._hiss_frames) - 1,
-                    self._hiss_animation_tick // self.HISS_FRAME_HOLD_TICKS,
-                ),
+                "hiss_frame_index": self._hiss_frame_index(),
             }
         )
         return diagnostics
@@ -640,10 +644,7 @@ class InteractivePetWindow(SpritePetWindow):
             if not candidate.isNull():
                 sprite = candidate
         if visual_state == "hiss":
-            frame_index = min(
-                len(self._hiss_frames) - 1,
-                self._hiss_animation_tick // self.HISS_FRAME_HOLD_TICKS,
-            )
+            frame_index = self._hiss_frame_index()
             candidate = self._hiss_frames[frame_index]
             if not candidate.isNull():
                 sprite = candidate
@@ -728,20 +729,8 @@ class InteractivePetWindow(SpritePetWindow):
             y_scale = 1.0 + 0.018 * breath
             rotation = 1.2 * math.sin(phase * 1.2)
         elif visual_state == "hiss":
-            hiss_frame_index = min(
-                len(self._hiss_frames) - 1,
-                self._hiss_animation_tick // self.HISS_FRAME_HOLD_TICKS,
-            )
-            if hiss_frame_index == 0:
-                y_offset = 1.0
-                y_scale = 0.995
-            elif hiss_frame_index == 1:
-                x_offset = 2.0 * math.sin(phase * 28.0)
-                y_offset = -2.0
-                x_scale = 1.015
-                y_scale = 1.015
-            else:
-                y_offset = -0.5
+            if self._hiss_frame_index() == 2:
+                x_offset = 1.0 * math.sin(phase * 28.0)
         elif visual_state == "sleep":
             breath = (math.sin(phase * 1.5) + 1.0) / 2.0
             y_scale = 1.0 + 0.008 * breath

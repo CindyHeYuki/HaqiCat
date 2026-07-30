@@ -57,7 +57,7 @@ class SpritePetWindow(PetWindow):
         sprite_root = project_root / "assets" / "character" / "processed"
         return {
             "idle": sprite_root / "haqi_cat_idle.png",
-            "hiss": sprite_root / "haqi_cat_hiss_02.png",
+            "hiss": sprite_root / "haqi_cat_hiss_03.png",
             "sleep": sprite_root / "haqi_cat_sleep.png",
             "drag": sprite_root / "haqi_cat_drag.png",
             "crawl_left": sprite_root / "haqi_cat_crawl_left_01.png",
