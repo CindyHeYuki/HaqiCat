@@ -38,6 +38,12 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertEqual(self.window._drag_offset.y(), self.window.DRAG_LIFT_Y_PX)
         self.window._end_drag_pose()
         self.assertFalse(self.window.diagnostic_state()["drag_pose_active"])
+        self.assertTrue(self.window.diagnostic_state()["landing_active"])
+        self.assertTrue(self.window._landing_timer.isActive())
+        self.assertEqual(self.window.state, "idle")
+        self.window._finish_landing_animation()
+        self.assertFalse(self.window.diagnostic_state()["landing_active"])
+        self.assertFalse(self.window._landing_timer.isActive())
 
     def test_single_click_handler_hisses(self) -> None:
         self.window._handle_single_click()

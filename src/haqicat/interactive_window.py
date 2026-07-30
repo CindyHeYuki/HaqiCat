@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QPoint, QRect, QTimer, Qt
+from PySide6.QtCore import QElapsedTimer, QPoint, QRect, QTimer, Qt
 from PySide6.QtGui import QMouseEvent, QPainter
 from PySide6.QtWidgets import QApplication
 
@@ -18,6 +18,7 @@ class InteractivePetWindow(SpritePetWindow):
     SLEEP_FRAME_INTERVAL_MS = 200
     DRAG_THRESHOLD_PX = 6
     DRAG_LIFT_Y_PX = 18
+    LANDING_DURATION_MS = 760
 
     def __init__(self) -> None:
         super().__init__()
@@ -25,6 +26,7 @@ class InteractivePetWindow(SpritePetWindow):
 
         self._motion_frame = 0
         self._drag_pose_active = False
+        self._landing_active = False
         self._press_position: QPoint | None = None
         self._dragged_since_press = False
         self._suppress_next_release = False
@@ -33,6 +35,11 @@ class InteractivePetWindow(SpritePetWindow):
         self._motion_timer.setInterval(self.ACTIVE_FRAME_INTERVAL_MS)
         self._motion_timer.timeout.connect(self._advance_motion)
         self._motion_timer.start()
+
+        self._landing_clock = QElapsedTimer()
+        self._landing_timer = QTimer(self)
+        self._landing_timer.setSingleShot(True)
+        self._landing_timer.timeout.connect(self._finish_landing_animation)
 
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
@@ -56,6 +63,7 @@ class InteractivePetWindow(SpritePetWindow):
 
     def toggle_sleep(self) -> None:
         """Toggle between the sleeping and idle states."""
+        self._cancel_landing_animation()
         if self.state == "sleep":
             self.set_state("idle")
             self._schedule_behavior()
@@ -71,6 +79,7 @@ class InteractivePetWindow(SpritePetWindow):
         if self._drag_pose_active:
             return
         self._drag_pose_active = True
+        self._cancel_landing_animation()
         self._click_timer.stop()
         self._drag_offset = QPoint(self.width() // 2, self.DRAG_LIFT_Y_PX)
         self.update()
@@ -78,9 +87,36 @@ class InteractivePetWindow(SpritePetWindow):
     def _end_drag_pose(self) -> None:
         """Restore normal rendering after the pointer releases the pet."""
         self._drag_pose_active = False
+        self._start_landing_animation()
+
+    def _start_landing_animation(self) -> None:
+        """Play a short drop, rebound, and head-shake sequence."""
+        self._behavior_timer.stop()
+        self._reaction_timer.stop()
+        self.set_state("idle")
+        self._landing_active = True
+        self._landing_clock.restart()
+        self._landing_timer.start(self.LANDING_DURATION_MS)
         self.update()
 
+    def _cancel_landing_animation(self) -> None:
+        if not self._landing_active:
+            return
+        self._landing_timer.stop()
+        self._landing_active = False
+        self.update()
+
+    def _finish_landing_animation(self) -> None:
+        if not self._landing_active:
+            return
+        self._landing_timer.stop()
+        self._landing_active = False
+        self.update()
+        if self.state == "idle":
+            self._schedule_behavior()
+
     def _start_hiss(self) -> None:
+        self._cancel_landing_animation()
         self._behavior_timer.stop()
         super()._start_hiss()
 
@@ -143,14 +179,21 @@ class InteractivePetWindow(SpritePetWindow):
                 "single_click_reaction": "hiss",
                 "double_click_reaction": "toggle_sleep",
                 "drag_pose_active": self._drag_pose_active,
+                "landing_active": self._landing_active,
             }
         )
         return diagnostics
 
     def paintEvent(self, event: object) -> None:
         """Render smooth breathing, swaying, and hissing shake motion."""
-        visual_state = "drag" if self._drag_pose_active else self.state
-        sprite = self._sprites.get(visual_state)
+        if self._drag_pose_active:
+            visual_state = "drag"
+        elif self._landing_active:
+            visual_state = "landing"
+        else:
+            visual_state = self.state
+        sprite_state = "idle" if visual_state == "landing" else visual_state
+        sprite = self._sprites.get(sprite_state)
         if sprite is None or sprite.isNull():
             super().paintEvent(event)
             return
@@ -168,6 +211,24 @@ class InteractivePetWindow(SpritePetWindow):
         if visual_state == "drag":
             y_offset = 1.5 * math.sin(phase * 4.0)
             rotation = 2.5 * math.sin(phase * 3.0)
+        elif visual_state == "landing":
+            progress = min(
+                1.0,
+                self._landing_clock.elapsed() / self.LANDING_DURATION_MS,
+            )
+            if progress < 0.22:
+                local = progress / 0.22
+                y_offset = -8.0 + 18.0 * local
+                y_scale = 1.0 + 0.04 * local
+            elif progress < 0.48:
+                local = (progress - 0.22) / 0.26
+                y_offset = 10.0 * (1.0 - local) - 4.0 * math.sin(math.pi * local)
+                x_scale = 1.0 + 0.08 * (1.0 - local)
+                y_scale = 1.0 - 0.06 * (1.0 - local)
+            else:
+                local = (progress - 0.48) / 0.52
+                damping = 1.0 - local
+                rotation = 4.0 * damping * math.sin(local * math.pi * 5.0)
         elif visual_state == "idle":
             breath = (math.sin(phase * 2.4) + 1.0) / 2.0
             y_offset = -2.0 * breath
