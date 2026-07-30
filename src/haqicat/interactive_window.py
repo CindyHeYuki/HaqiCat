@@ -21,7 +21,7 @@ class InteractivePetWindow(SpritePetWindow):
     DRAG_LIFT_Y_PX = 18
     LANDING_DURATION_MS = 760
     BEHAVIOR_DELAY_RANGE_MS = (4_000, 8_000)
-    CRAWL_STEP_PX = 2
+    CRAWL_DISPLACEMENT_PATTERN_PX = (1, 0, 1, 2, 3, 2, 1, 0, 1, 2, 3, 2)
     CRAWL_STEP_RANGE = (18, 40)
     OBSERVE_DURATION_MS = 1_800
     OBSERVE_SETTLE_TICKS = 4
@@ -313,8 +313,12 @@ class InteractivePetWindow(SpritePetWindow):
             self._start_observing()
             return
 
+        stride_tick = self._crawl_animation_tick % len(
+            self.CRAWL_DISPLACEMENT_PATTERN_PX
+        )
+        step_px = self.CRAWL_DISPLACEMENT_PATTERN_PX[stride_tick]
         requested = QPoint(
-            self.x() + self._crawl_direction * self.CRAWL_STEP_PX,
+            self.x() + self._crawl_direction * step_px,
             self.y(),
         )
         clamped = self.clamp_to_bounds(
@@ -534,6 +538,12 @@ class InteractivePetWindow(SpritePetWindow):
                 "observe_direction": self._observe_direction,
                 "crawl_direction": self._crawl_direction,
                 "crawl_steps_remaining": self._crawl_steps_remaining,
+                "crawl_stride_tick": self._crawl_animation_tick,
+                "crawl_current_step_px": self.CRAWL_DISPLACEMENT_PATTERN_PX[
+                    self._crawl_animation_tick
+                    % len(self.CRAWL_DISPLACEMENT_PATTERN_PX)
+                ],
+                "crawl_stride_pattern_px": self.CRAWL_DISPLACEMENT_PATTERN_PX,
                 "autonomous_mode": (
                     "drag"
                     if self._drag_pose_active
@@ -698,6 +708,15 @@ class InteractivePetWindow(SpritePetWindow):
                 local = (progress - 0.48) / 0.52
                 damping = 1.0 - local
                 rotation = 4.0 * damping * math.sin(local * math.pi * 5.0)
+        elif visual_state in self._crawl_frames:
+            stride_frame = (
+                self._crawl_animation_tick // self.CRAWL_FRAME_HOLD_TICKS
+            ) % 4
+            direction = -1 if visual_state == "crawl_left" else 1
+            y_offset = (1.2, 0.0, 1.0, 0.0)[stride_frame]
+            x_scale = (0.998, 1.006, 0.998, 1.006)[stride_frame]
+            y_scale = (0.994, 1.002, 0.994, 1.002)[stride_frame]
+            rotation = direction * (-0.2, 0.45, -0.2, 0.45)[stride_frame]
         elif visual_state == "observe":
             breath = (math.sin(phase * 1.8) + 1.0) / 2.0
             y_offset = -0.5 * breath

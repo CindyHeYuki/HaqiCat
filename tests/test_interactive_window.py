@@ -56,7 +56,10 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertEqual(self.window.state, "crawl_right")
         self.window._advance_crawl()
 
-        self.assertEqual(self.window.x(), start_x + self.window.CRAWL_STEP_PX)
+        self.assertEqual(
+            self.window.x(),
+            start_x + self.window.CRAWL_DISPLACEMENT_PATTERN_PX[0],
+        )
         self.assertEqual(self.window.state, "observe_right")
         self.assertTrue(self.window.diagnostic_state()["observing_active"])
         self.assertTrue(self.window._observe_timer.isActive())
@@ -100,6 +103,27 @@ class InteractivePetWindowTests(unittest.TestCase):
             self.window.diagnostic_state()["crawl_frame_index"],
             1,
         )
+
+    def test_crawl_displacement_pauses_on_planted_paws(self) -> None:
+        screen = self.window.screen()
+        self.assertIsNotNone(screen)
+        bounds = screen.availableGeometry()
+        self.window.move(bounds.center())
+        previous_x = self.window.x()
+        observed_steps = []
+
+        self.window._start_crawl(direction=1, steps=6)
+        for _ in range(6):
+            self.window._advance_crawl()
+            observed_steps.append(self.window.x() - previous_x)
+            previous_x = self.window.x()
+
+        self.assertEqual(
+            observed_steps,
+            list(self.window.CRAWL_DISPLACEMENT_PATTERN_PX[:6]),
+        )
+        self.assertIn(0, observed_steps)
+        self.assertGreater(max(observed_steps), min(observed_steps))
 
     def test_observation_settles_before_holding_low_pose(self) -> None:
         diagnostics = self.window.diagnostic_state()
