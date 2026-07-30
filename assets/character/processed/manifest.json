@@ -88,6 +88,18 @@
       "file": "haqi_cat_drag.png",
       "sha256": "ec88cb92e1613bec57bc829fd91a8090d1484dcc378bb547b9de4164c379331d"
     },
+    "hiss_01": {
+      "file": "haqi_cat_hiss_01.png",
+      "sha256": "22436007664b41811d966e2ffe3b5df57c4043b7739701c6a1149aefda3cda8d"
+    },
+    "hiss_02": {
+      "file": "haqi_cat_hiss_02.png",
+      "sha256": "6ecc1ca0670a4726c644b334c5542dd65903663af5a1453cd5159e45deba1e2b"
+    },
+    "hiss_03": {
+      "file": "haqi_cat_hiss_03.png",
+      "sha256": "c56c39d5ddd2422abb427d8c9f1f6eb1c627f97cfe11d1d78344ceeb46e17fab"
+    },
     "hiss": {
       "file": "haqi_cat_hiss.png",
       "sha256": "5fdf0b476de5995b62a3302630508ac3e3677f3fd6702bb145ea4afe0096ef94"

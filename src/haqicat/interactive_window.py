@@ -29,6 +29,8 @@ class InteractivePetWindow(SpritePetWindow):
     RISE_FRAME_HOLD_TICKS = 4
     BLINK_DELAY_RANGE_MS = (2_500, 7_000)
     BLINK_FRAME_HOLD_TICKS = 2
+    HISS_DURATION_MS = 960
+    HISS_FRAME_HOLD_TICKS = 4
     CRAWL_FRAME_HOLD_TICKS = 3
 
     def __init__(self) -> None:
@@ -48,6 +50,7 @@ class InteractivePetWindow(SpritePetWindow):
         self._rise_animation_tick = 0
         self._blink_active = False
         self._blink_animation_tick = 0
+        self._hiss_animation_tick = 0
         self._crawl_animation_tick = 0
         self._press_position: QPoint | None = None
         self._dragged_since_press = False
@@ -82,6 +85,7 @@ class InteractivePetWindow(SpritePetWindow):
         self._observe_frames = self._load_observe_frames()
         self._rise_frames = self._load_rise_frames()
         self._blink_frames = self._load_blink_frames()
+        self._hiss_frames = self._load_hiss_frames()
 
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
@@ -147,6 +151,14 @@ class InteractivePetWindow(SpritePetWindow):
         closed = QPixmap(str(sprite_root / "haqi_cat_idle_blink_closed.png"))
         return (half, closed, half)
 
+    def _load_hiss_frames(self) -> tuple[QPixmap, ...]:
+        """Load the crouch, explosive hiss, and recovery phases."""
+        sprite_root = self.sprite_paths["hiss"].parent
+        return tuple(
+            QPixmap(str(sprite_root / f"haqi_cat_hiss_{index:02d}.png"))
+            for index in range(1, 4)
+        )
+
     def set_state(self, state: str) -> None:
         """Keep motion timing appropriate for the selected state."""
         super().set_state(state)
@@ -188,6 +200,8 @@ class InteractivePetWindow(SpritePetWindow):
             self._observe_animation_tick += 1
         if self._rising_active:
             self._rise_animation_tick += 1
+        if self.state == "hiss":
+            self._hiss_animation_tick += 1
         if self._blink_active:
             self._blink_animation_tick += 1
             if self._blink_animation_tick >= (
@@ -445,7 +459,12 @@ class InteractivePetWindow(SpritePetWindow):
         self._cancel_landing_animation()
         self._cancel_autonomous_motion()
         self._behavior_timer.stop()
+        self._hiss_animation_tick = 0
         super()._start_hiss()
+
+    def _finish_hiss(self) -> None:
+        self._hiss_animation_tick = 0
+        super()._finish_hiss()
 
     def _handle_single_click(self) -> None:
         if self.state == "sleep":
@@ -571,6 +590,14 @@ class InteractivePetWindow(SpritePetWindow):
                     len(self._blink_frames) - 1,
                     self._blink_animation_tick // self.BLINK_FRAME_HOLD_TICKS,
                 ),
+                "hiss_animation_frames": len(self._hiss_frames),
+                "hiss_animation_loaded": all(
+                    not frame.isNull() for frame in self._hiss_frames
+                ),
+                "hiss_frame_index": min(
+                    len(self._hiss_frames) - 1,
+                    self._hiss_animation_tick // self.HISS_FRAME_HOLD_TICKS,
+                ),
             }
         )
         return diagnostics
@@ -600,6 +627,14 @@ class InteractivePetWindow(SpritePetWindow):
                 self._blink_animation_tick // self.BLINK_FRAME_HOLD_TICKS,
             )
             candidate = self._blink_frames[frame_index]
+            if not candidate.isNull():
+                sprite = candidate
+        if visual_state == "hiss":
+            frame_index = min(
+                len(self._hiss_frames) - 1,
+                self._hiss_animation_tick // self.HISS_FRAME_HOLD_TICKS,
+            )
+            candidate = self._hiss_frames[frame_index]
             if not candidate.isNull():
                 sprite = candidate
         if visual_state in self._crawl_frames:
@@ -674,10 +709,20 @@ class InteractivePetWindow(SpritePetWindow):
             y_scale = 1.0 + 0.018 * breath
             rotation = 1.2 * math.sin(phase * 1.2)
         elif visual_state == "hiss":
-            x_offset = 3.0 * math.sin(phase * 28.0)
-            y_offset = -2.0
-            x_scale = 1.02
-            y_scale = 1.02
+            hiss_frame_index = min(
+                len(self._hiss_frames) - 1,
+                self._hiss_animation_tick // self.HISS_FRAME_HOLD_TICKS,
+            )
+            if hiss_frame_index == 0:
+                y_offset = 1.0
+                y_scale = 0.995
+            elif hiss_frame_index == 1:
+                x_offset = 2.0 * math.sin(phase * 28.0)
+                y_offset = -2.0
+                x_scale = 1.015
+                y_scale = 1.015
+            else:
+                y_offset = -0.5
         elif visual_state == "sleep":
             breath = (math.sin(phase * 1.5) + 1.0) / 2.0
             y_scale = 1.0 + 0.008 * breath

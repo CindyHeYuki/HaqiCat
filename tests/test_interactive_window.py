@@ -177,6 +177,27 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertFalse(self.window.diagnostic_state()["blink_active"])
         self.assertTrue(self.window._blink_timer.isActive())
 
+    def test_hiss_animation_uses_three_loaded_phases(self) -> None:
+        diagnostics = self.window.diagnostic_state()
+        self.assertTrue(diagnostics["hiss_animation_loaded"])
+        self.assertEqual(diagnostics["hiss_animation_frames"], 3)
+
+        self.window._start_hiss()
+        self.assertEqual(self.window.state, "hiss")
+        self.assertEqual(self.window.diagnostic_state()["hiss_frame_index"], 0)
+
+        for expected_index in (1, 2):
+            for _ in range(self.window.HISS_FRAME_HOLD_TICKS):
+                self.window._advance_motion()
+            self.assertEqual(
+                self.window.diagnostic_state()["hiss_frame_index"],
+                expected_index,
+            )
+
+        self.window._finish_hiss()
+        self.assertEqual(self.window.state, "idle")
+        self.assertEqual(self.window.diagnostic_state()["hiss_frame_index"], 0)
+
     def test_single_click_handler_hisses(self) -> None:
         self.window._handle_single_click()
         self.assertEqual(self.window.state, "hiss")
