@@ -32,9 +32,25 @@
       "file": "haqi_cat_walk_left.png",
       "sha256": "d9b79a0255c5fc4656a702addb2ee2f970ad93caba7b77fd078e6b461d0ea77b"
     },
+    "walk_left_02": {
+      "file": "haqi_cat_walk_left_02.png",
+      "sha256": "55c521eadee9e8d968be709b114707aa5a39d3c00172a303b2d200c30845a656"
+    },
+    "walk_left_03": {
+      "file": "haqi_cat_walk_left_03.png",
+      "sha256": "74e4c828703bf30fab4363215e13763495ba55c4f99d4da5656ea8dec2a4273d"
+    },
     "walk_right": {
       "file": "haqi_cat_walk_right.png",
       "sha256": "cc8f99f41cf46b504fd0d6496af822acaa2bd711a3c295bc5649d18e4002f826"
+    },
+    "walk_right_02": {
+      "file": "haqi_cat_walk_right_02.png",
+      "sha256": "10b05af8028bb4489a5dfa76db734ab09e0cb2af58c682bb8ba41ed1cf44832a"
+    },
+    "walk_right_03": {
+      "file": "haqi_cat_walk_right_03.png",
+      "sha256": "118aec6caf282ed7c88a6c243a8a526d1282c01d0c9368cd17abe0a56ce7ed73"
     }
   }
 }

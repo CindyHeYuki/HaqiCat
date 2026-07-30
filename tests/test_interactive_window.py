@@ -78,6 +78,23 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertEqual(self.window.state, "walk_left")
         self.assertEqual(self.window._walk_steps_remaining, 5)
 
+    def test_walk_animation_uses_four_loaded_phases(self) -> None:
+        diagnostics = self.window.diagnostic_state()
+        self.assertTrue(diagnostics["walk_animation_loaded"])
+        self.assertEqual(diagnostics["walk_animation_frames"], 4)
+
+        self.window._start_walk(direction=1, steps=5)
+        self.assertEqual(
+            self.window.diagnostic_state()["walk_frame_index"],
+            0,
+        )
+        self.window._advance_walk()
+        self.window._advance_walk()
+        self.assertEqual(
+            self.window.diagnostic_state()["walk_frame_index"],
+            1,
+        )
+
     def test_single_click_handler_hisses(self) -> None:
         self.window._handle_single_click()
         self.assertEqual(self.window.state, "hiss")
