@@ -11,7 +11,7 @@ from typing import Sequence
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from haqicat.sprite_window import SpritePetWindow
+from haqicat.interactive_window import InteractivePetWindow
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,7 +37,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     application.setApplicationName("HaqiCat")
     application.setQuitOnLastWindowClosed(True)
 
-    window = SpritePetWindow()
+    window = InteractivePetWindow()
     window.show()
 
     if args.smoke_test:

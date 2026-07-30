@@ -1,85 +1,71 @@
 # HaqiCat
 
-HaqiCat 是一个面向 Windows 的 Python 3 / PySide6 桌面宠物项目，形象方向参考《魔法少女的魔女审判》中二阶堂希罗相关的“哈气猫”。
+HaqiCat 是一个使用 Python 3 与 PySide6 开发的 Windows 桌面宠物，形象方向参考
+《魔法少女的魔女审判》中二阶堂希罗相关的“哈气猫”。
 
-当前仓库处于**阶段 0：工程初始化**。此阶段只建立可运行的工程骨架和环境检查工具，尚未实现桌面窗口与动画。
+当前版本已具备透明无边框、始终置顶、屏幕边界限制、鼠标拖动、右键退出、
+低频率连续动画，以及基础点击互动。
 
-## 当前环境检查结果
+## 启动
 
-检查日期：2026-07-30
+双击项目根目录中的 `HaqiCat.vbs`。它会使用项目虚拟环境中的 `pythonw.exe`
+启动桌宠，不会一直显示黑色命令窗口，也不会修改系统设置。
 
-| 组件 | 状态 | 备注 |
-| --- | --- | --- |
-| Git | 可用 | 2.53.0.windows.2 |
-| Python 3 | 部分可用 | 系统未安装可供 `python`/`py` 使用的解释器；Codex 工作区内置 Python 3.12.13 可用 |
-| PySide6 | 未安装 | 后续安装 |
-| PyInstaller | 未安装 | 后续安装 |
+`run_haqicat.cmd` 仅用于开发和排错，需要查看诊断输出时再使用。
 
-> PySide6 和 PyInstaller 的安装会联网获取并落地可执行组件，因此需要得到用户确认后再进行。
+## 当前互动
 
-## 阶段目标
+- 待机：呼吸、上下浮动与轻微摇摆
+- 单击：哈气并抖动
+- 双击：趴下休息；再次双击恢复待机
+- 左键拖动：移动桌宠，并限制在当前屏幕工作区域内
+- 右键：哈气、休息/恢复或退出
+- 空闲时：间隔一段时间随机哈气
 
-第一阶段计划逐步完成：
+## 环境准备
 
-- 透明无边框窗口
-- 窗口始终置顶
-- 鼠标拖动
-- 待机动画
-- 随机走动
-- 屏幕边界限制
-- 右键退出菜单
-- 较低的 CPU 占用
-
-每完成一个可运行阶段，都应实际运行验证并创建一次本地 Git commit。
-
-## 工程结构
-
-```text
-HaqiCat/
-├─ assets/
-│  └─ character/
-│     ├─ source/       # 从网络获取、尚未处理的角色素材
-│     └─ processed/    # 清理、裁切和动画处理后的素材
-├─ src/
-│  └─ haqicat/         # 应用程序包
-├─ tests/              # 自动化测试
-├─ tools/              # 环境检查等开发工具
-├─ pyproject.toml
-└─ requirements.txt
-```
-
-## 本地准备
-
-建议安装 Python 3.11 或 3.12，然后在项目目录执行：
+推荐 Python 3.11 或 3.12。项目当前使用 Python 3.12、PySide6 和 PyInstaller。
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 ```
 
-安装完成后检查环境：
-
-```powershell
-python tools\check_environment.py
-```
-
-运行当前工程骨架：
+开发模式运行：
 
 ```powershell
 $env:PYTHONPATH = "src"
 python -m haqicat
 ```
 
-## 素材说明
+运行测试：
 
-角色素材将在后续阶段从公开网页检索并保存到 `assets/character/source/`。使用前会记录来源、用途与可确认的授权信息；仓库默认不提交未经确认的原始素材。若公开素材的使用许可不明确，将只用于本地原型验证，发布版本需要替换为获得授权或自行制作的素材。
+```powershell
+$env:QT_QPA_PLATFORM = "offscreen"
+$env:PYTHONPATH = "src"
+python -m unittest discover -s tests -v
+```
 
-## 开发阶段
+## 工程结构
 
-1. **阶段 0（当前）**：检查环境、创建工程骨架和文档。
-2. **阶段 1**：安装依赖，创建透明、无边框、置顶且可拖动的最小窗口。
-3. **阶段 2**：获取并处理角色素材，加入低频率待机动画。
-4. **阶段 3**：加入随机走动、屏幕边界限制和右键退出菜单。
-5. **阶段 4**：性能检查、PyInstaller 打包和 Windows 实机验证。
+```text
+HaqiCat/
+├─ assets/character/processed/  # 已处理的透明角色素材
+├─ docs/                        # 每个可运行阶段的记录
+├─ src/haqicat/                 # 桌宠程序
+├─ tests/                       # 自动测试
+├─ tools/                       # 环境检查和素材处理工具
+├─ HaqiCat.vbs                  # 推荐的无黑框启动入口
+└─ run_haqicat.cmd              # 开发诊断入口
+```
 
+## 迭代路线
+
+- 已完成：基础窗口、素材状态、拖动与边界限制、右键菜单
+- 本轮完成：无黑框启动、连续待机动作、点击哈气、双击休息
+- 下一轮：随机走动、停步观察、屏幕边缘转向
+- 后续：真正的多帧动作素材、更多互动和 PyInstaller 窗口程序打包
+
+项目按可运行的小阶段迭代；每一阶段都会实际运行验证、提交 Git，并在更新前
+保留可回退的远端备份分支。
