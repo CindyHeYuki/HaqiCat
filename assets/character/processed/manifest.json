@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "character": "Haqi Cat",
+  "canvas": {
+    "width": 256,
+    "height": 256,
+    "format": "RGBA PNG"
+  },
+  "generation": {
+    "mode": "built-in image generation",
+    "background_removal": "flat chroma key plus local soft-matte removal",
+    "reference_images": "four user-provided Haqi Cat images"
+  },
+  "sprites": {
+    "hiss": {
+      "file": "haqi_cat_hiss.png",
+      "sha256": "5fdf0b476de5995b62a3302630508ac3e3677f3fd6702bb145ea4afe0096ef94"
+    },
+    "idle": {
+      "file": "haqi_cat_idle.png",
+      "sha256": "bc7ed1f262328fac8775de8c3f5b9ed0ca97f5ca6713fa9cbdabb2a20cda9dbf"
+    },
+    "sleep": {
+      "file": "haqi_cat_sleep.png",
+      "sha256": "9f9a5ba65a84cbefd5bdee502227b325c848f2dc3b4389603718108cf45fcccd"
+    },
+    "walk_left": {
+      "file": "haqi_cat_walk_left.png",
+      "sha256": "d9b79a0255c5fc4656a702addb2ee2f970ad93caba7b77fd078e6b461d0ea77b"
+    },
+    "walk_right": {
+      "file": "haqi_cat_walk_right.png",
+      "sha256": "cc8f99f41cf46b504fd0d6496af822acaa2bd711a3c295bc5649d18e4002f826"
+    }
+  }
+}
+
