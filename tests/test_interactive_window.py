@@ -45,6 +45,39 @@ class InteractivePetWindowTests(unittest.TestCase):
         self.assertFalse(self.window.diagnostic_state()["landing_active"])
         self.assertFalse(self.window._landing_timer.isActive())
 
+    def test_walk_moves_then_stops_to_observe(self) -> None:
+        screen = self.window.screen()
+        self.assertIsNotNone(screen)
+        bounds = screen.availableGeometry()
+        self.window.move(bounds.left() + 50, bounds.top() + 50)
+        start_x = self.window.x()
+
+        self.window._start_walk(direction=1, steps=1)
+        self.assertEqual(self.window.state, "walk_right")
+        self.window._advance_walk()
+
+        self.assertEqual(self.window.x(), start_x + self.window.WALK_STEP_PX)
+        self.assertEqual(self.window.state, "idle")
+        self.assertTrue(self.window.diagnostic_state()["observing_active"])
+        self.assertTrue(self.window._observe_timer.isActive())
+        self.window._finish_observing()
+        self.assertFalse(self.window.diagnostic_state()["observing_active"])
+
+    def test_walk_turns_around_at_screen_edge(self) -> None:
+        screen = self.window.screen()
+        self.assertIsNotNone(screen)
+        bounds = screen.availableGeometry()
+        rightmost_x = bounds.right() - self.window.width() + 1
+        self.window.move(rightmost_x, bounds.top())
+
+        self.window._start_walk(direction=1, steps=5)
+        self.window._advance_walk()
+
+        self.assertEqual(self.window.x(), rightmost_x)
+        self.assertEqual(self.window._walk_direction, -1)
+        self.assertEqual(self.window.state, "walk_left")
+        self.assertEqual(self.window._walk_steps_remaining, 5)
+
     def test_single_click_handler_hisses(self) -> None:
         self.window._handle_single_click()
         self.assertEqual(self.window.state, "hiss")

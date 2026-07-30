@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import random
 
 from PySide6.QtCore import QElapsedTimer, QPoint, QRect, QTimer, Qt
 from PySide6.QtGui import QMouseEvent, QPainter
@@ -19,6 +20,10 @@ class InteractivePetWindow(SpritePetWindow):
     DRAG_THRESHOLD_PX = 6
     DRAG_LIFT_Y_PX = 18
     LANDING_DURATION_MS = 760
+    BEHAVIOR_DELAY_RANGE_MS = (4_000, 8_000)
+    WALK_STEP_PX = 3
+    WALK_STEP_RANGE = (24, 52)
+    OBSERVE_DURATION_MS = 1_400
 
     def __init__(self) -> None:
         super().__init__()
@@ -27,6 +32,10 @@ class InteractivePetWindow(SpritePetWindow):
         self._motion_frame = 0
         self._drag_pose_active = False
         self._landing_active = False
+        self._walk_direction = 0
+        self._walk_steps_remaining = 0
+        self._observing_active = False
+        self._observe_direction = 1
         self._press_position: QPoint | None = None
         self._dragged_since_press = False
         self._suppress_next_release = False
@@ -41,6 +50,13 @@ class InteractivePetWindow(SpritePetWindow):
         self._landing_timer.setSingleShot(True)
         self._landing_timer.timeout.connect(self._finish_landing_animation)
 
+        self._observe_timer = QTimer(self)
+        self._observe_timer.setSingleShot(True)
+        self._observe_timer.timeout.connect(self._finish_observing)
+
+        self._behavior_timer.timeout.disconnect()
+        self._behavior_timer.timeout.connect(self._choose_autonomous_behavior)
+
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
         self._click_timer.setInterval(QApplication.doubleClickInterval() + 50)
@@ -52,6 +68,10 @@ class InteractivePetWindow(SpritePetWindow):
     def set_state(self, state: str) -> None:
         """Keep motion timing appropriate for the selected state."""
         super().set_state(state)
+        if state == "sleep" and hasattr(self, "_observe_timer"):
+            self._walk_steps_remaining = 0
+            self._walk_direction = 0
+            self._cancel_observing()
         self._idle_timer.stop()
         if hasattr(self, "_motion_timer"):
             interval = (
@@ -64,6 +84,7 @@ class InteractivePetWindow(SpritePetWindow):
     def toggle_sleep(self) -> None:
         """Toggle between the sleeping and idle states."""
         self._cancel_landing_animation()
+        self._cancel_autonomous_motion()
         if self.state == "sleep":
             self.set_state("idle")
             self._schedule_behavior()
@@ -72,7 +93,124 @@ class InteractivePetWindow(SpritePetWindow):
 
     def _advance_motion(self) -> None:
         self._motion_frame = (self._motion_frame + 1) % 10_000
+        self._advance_walk()
         self.update()
+
+    def _choose_autonomous_behavior(self) -> None:
+        """Choose a short walk most of the time, otherwise hiss."""
+        if (
+            self.state != "idle"
+            or self._drag_pose_active
+            or self._landing_active
+            or self._observing_active
+        ):
+            return
+        if random.random() < 0.72:
+            self._start_walk()
+        else:
+            self._start_hiss()
+
+    def _start_walk(
+        self,
+        direction: int | None = None,
+        steps: int | None = None,
+    ) -> None:
+        """Begin a bounded walk in the chosen or inferred direction."""
+        if self.state == "sleep" or self._drag_pose_active:
+            return
+        self._cancel_landing_animation()
+        self._cancel_observing()
+        self._behavior_timer.stop()
+        self._reaction_timer.stop()
+
+        if direction is None:
+            screen = self.screen()
+            if screen is not None:
+                bounds = screen.availableGeometry()
+                left_space = self.x() - bounds.left()
+                right_space = bounds.right() - self.frameGeometry().right()
+                if left_space < 40:
+                    direction = 1
+                elif right_space < 40:
+                    direction = -1
+            if direction is None:
+                direction = random.choice((-1, 1))
+        if direction not in (-1, 1):
+            raise ValueError("Walk direction must be -1 or 1.")
+
+        self._walk_direction = direction
+        self._walk_steps_remaining = max(
+            1,
+            steps if steps is not None else random.randint(*self.WALK_STEP_RANGE),
+        )
+        self.set_state("walk_left" if direction < 0 else "walk_right")
+
+    def _advance_walk(self) -> None:
+        if (
+            self.state not in ("walk_left", "walk_right")
+            or self._walk_steps_remaining <= 0
+            or self._drag_pose_active
+            or self._landing_active
+        ):
+            return
+        screen = self.screen()
+        if screen is None:
+            self._start_observing()
+            return
+
+        requested = QPoint(
+            self.x() + self._walk_direction * self.WALK_STEP_PX,
+            self.y(),
+        )
+        clamped = self.clamp_to_bounds(
+            requested,
+            screen.availableGeometry(),
+            self.size(),
+        )
+        if clamped.x() != requested.x():
+            self._walk_direction *= -1
+            self.set_state(
+                "walk_left" if self._walk_direction < 0 else "walk_right"
+            )
+            return
+
+        self.move(clamped)
+        self._walk_steps_remaining -= 1
+        if self._walk_steps_remaining <= 0:
+            self._start_observing()
+
+    def _start_observing(self) -> None:
+        """Pause after walking and look around before idling again."""
+        self._observe_direction = self._walk_direction or self._observe_direction
+        self._walk_direction = 0
+        self._walk_steps_remaining = 0
+        self.set_state("idle")
+        self._observing_active = True
+        self._observe_timer.start(self.OBSERVE_DURATION_MS)
+        self.update()
+
+    def _cancel_observing(self) -> None:
+        if not self._observing_active:
+            return
+        self._observe_timer.stop()
+        self._observing_active = False
+        self.update()
+
+    def _finish_observing(self) -> None:
+        if not self._observing_active:
+            return
+        self._observe_timer.stop()
+        self._observing_active = False
+        self.update()
+        if self.state == "idle":
+            self._schedule_behavior()
+
+    def _cancel_autonomous_motion(self) -> None:
+        self._walk_direction = 0
+        self._walk_steps_remaining = 0
+        if self.state in ("walk_left", "walk_right"):
+            self.set_state("idle")
+        self._cancel_observing()
 
     def _begin_drag_pose(self) -> None:
         """Switch to the lifted pose and anchor it beneath the cursor."""
@@ -80,6 +218,7 @@ class InteractivePetWindow(SpritePetWindow):
             return
         self._drag_pose_active = True
         self._cancel_landing_animation()
+        self._cancel_autonomous_motion()
         self._click_timer.stop()
         self._drag_offset = QPoint(self.width() // 2, self.DRAG_LIFT_Y_PX)
         self.update()
@@ -91,6 +230,7 @@ class InteractivePetWindow(SpritePetWindow):
 
     def _start_landing_animation(self) -> None:
         """Play a short drop, rebound, and head-shake sequence."""
+        self._cancel_autonomous_motion()
         self._behavior_timer.stop()
         self._reaction_timer.stop()
         self.set_state("idle")
@@ -117,6 +257,7 @@ class InteractivePetWindow(SpritePetWindow):
 
     def _start_hiss(self) -> None:
         self._cancel_landing_animation()
+        self._cancel_autonomous_motion()
         self._behavior_timer.stop()
         super()._start_hiss()
 
@@ -129,6 +270,7 @@ class InteractivePetWindow(SpritePetWindow):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
+            self._cancel_autonomous_motion()
             self._press_position = event.globalPosition().toPoint()
             self._dragged_since_press = False
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
@@ -180,6 +322,20 @@ class InteractivePetWindow(SpritePetWindow):
                 "double_click_reaction": "toggle_sleep",
                 "drag_pose_active": self._drag_pose_active,
                 "landing_active": self._landing_active,
+                "observing_active": self._observing_active,
+                "walk_direction": self._walk_direction,
+                "walk_steps_remaining": self._walk_steps_remaining,
+                "autonomous_mode": (
+                    "drag"
+                    if self._drag_pose_active
+                    else "landing"
+                    if self._landing_active
+                    else "observe"
+                    if self._observing_active
+                    else "walk"
+                    if self.state in ("walk_left", "walk_right")
+                    else self.state
+                ),
             }
         )
         return diagnostics
@@ -190,9 +346,13 @@ class InteractivePetWindow(SpritePetWindow):
             visual_state = "drag"
         elif self._landing_active:
             visual_state = "landing"
+        elif self._observing_active:
+            visual_state = "observe"
         else:
             visual_state = self.state
-        sprite_state = "idle" if visual_state == "landing" else visual_state
+        sprite_state = (
+            "idle" if visual_state in ("landing", "observe") else visual_state
+        )
         sprite = self._sprites.get(sprite_state)
         if sprite is None or sprite.isNull():
             super().paintEvent(event)
@@ -229,6 +389,16 @@ class InteractivePetWindow(SpritePetWindow):
                 local = (progress - 0.48) / 0.52
                 damping = 1.0 - local
                 rotation = 4.0 * damping * math.sin(local * math.pi * 5.0)
+        elif visual_state == "observe":
+            x_offset = 2.0 * self._observe_direction
+            y_offset = -1.0
+            rotation = (
+                2.0 * self._observe_direction
+                + 0.8 * math.sin(phase * 2.2)
+            )
+        elif visual_state in ("walk_left", "walk_right"):
+            y_offset = -2.0 * abs(math.sin(phase * 6.0))
+            rotation = 0.8 * math.sin(phase * 6.0)
         elif visual_state == "idle":
             breath = (math.sin(phase * 2.4) + 1.0) / 2.0
             y_offset = -2.0 * breath
